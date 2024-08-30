@@ -1,0 +1,121 @@
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt2
+import matplotlib.cm as cm
+%matplotlib inline
+from sklearn import preprocessing
+d = pd.read_csv('data.csv')
+d
+
+d.reset_index(drop = True).head()
+d = d.drop('id',axis=1)
+
+d
+d['diagnosis'] = d['diagnosis'].map({'M':1,'B':0})
+d.head()
+datas = pd.DataFrame(preprocessing.scale(d.iloc[:,1:32]))
+datas.columns = list(d.iloc[:,1:32].columns)
+datas['diagnosis'] = d['diagnosis']
+datas
+data_drop = datas.drop('diagnosis',axis=1)
+X = data_drop.values
+from sklearn.manifold import TSNE
+tsne = TSNE(verbose=1, perplexity=40, n_iter= 4000)
+Y = tsne.fit_transform(X)
+X
+from sklearn.cluster import KMeans
+kmns = KMeans(n_clusters=2, init='k-means++', verbose=0, random_state=None, copy_x=True, algorithm='auto')
+kY = kmns.fit_predict(X)
+d['kmean'] = kmns.labels_
+f, (ax1, ax2) = plt.subplots(1, 2, sharey=True)
+ax1.scatter(Y[:,0],Y[:,1],  c=kY, cmap = "jet",alpha=0.25)
+ax1.set_title('k-means clustering plot')
+
+ax2.scatter(Y[:,0],Y[:,1],  c = datas['diagnosis'], cmap = "jet", alpha=0.25)
+ax2.set_title('Actual clusters')
+d['kmean'].value_counts()
+d
+X=d.iloc[:,1:32]
+print(X.shape)
+X.head()
+y = d.diagnosis
+print(y.shape)
+y.head()
+y.columns=['B','M']
+y.tail()
+y_num = pd.get_dummies(y)
+y_num.columns=['B','M']
+y_num.tail()
+y = y_num.M
+print(y.shape)
+y.tail()
+X.corr()
+import seaborn as sns
+plt.figure(figsize=(18, 12))
+sns.heatmap(X.corr(), vmin=0.85, vmax=1, annot=True, cmap='YlGnBu', linewidths=.5)
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+X_scaled = pd.DataFrame(X_scaled)
+X_scaled_drop = X_scaled.drop(X_scaled.columns[[2, 3, 12, 13, 22, 23]], axis=1)
+pca = PCA(n_components=0.95)
+x_pca = pca.fit_transform(X_scaled_drop)
+x_pca = pd.DataFrame(x_pca)
+print("Before PCA, X dataframe shape = ",X.shape,"\nAfter PCA, x_pca dataframe shape = ",x_pca.shape)
+print(pca.explained_variance_ratio_)
+print(pca.explained_variance_ratio_.sum())
+colnames = ['PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10','PC11','diagnosis']
+diag = d.iloc[:,1:2]
+Xy = pd.DataFrame(np.hstack([x_pca,diag.values]),columns=colnames)
+Xy.head()
+X=(Xy.iloc[:,0:12]).values
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+print("X_train shape ",X_train.shape)
+print("y_train shape ",y_train.shape)
+print("X_test shape ",X_test.shape)
+print("y_test shape ",y_test.shape)
+svm_linear=SVC(kernel='linear')
+svm_rbf=SVC(kernel='rbf')
+from sklearn.ensemble import VotingClassifier
+ensemble=VotingClassifier(estimators=[('linear',svm_linear),('rbf',svm_rbf)],voting='hard')
+ensemble.fit(X_train,y_train)
+y_pred=ensemble.predict(X_test)
+from sklearn import metrics
+accuracy=metrics.accuracy_score(y_test,y_pred)
+print(accuracy)
+from sklearn.metrics import confusion_matrix
+con=confusion_matrix(y_test,y_pred)
+print('Confusion matrix:')
+print(con)
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+sensitivity = recall_score(y_test,y_pred)
+print("Sensitivity/Recall:", sensitivity)
+f1 = f1_score(y_test,y_pred)
+print("F1 Score:", f1)
+def calculate_specificity(confusion_matrix):
+    # Extract the counts of true negatives (TN) and false positives (FP)
+    tn = confusion_matrix[0, 0]
+    fp = confusion_matrix[0, 1]
+
+    # Calculate specificity
+    specificity = tn / (tn + fp)
+    return specificity
+
+# Assuming you have the confusion matrix stored in a numpy array
+confusion_matrix = np.array([[59, 4], [1, 107]])  # Replace TN, FP, FN, TP with actual values
+
+# Calculate specificity
+specificity = calculate_specificity(con)
+
+# Print specificity
+print("Specificity:", specificity)
